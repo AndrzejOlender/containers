@@ -24,6 +24,8 @@ env:
 permissions:
   contents: read
   packages: write
+  id-token: write
+  attestations: write
   
 jobs:
   discover-images:
@@ -146,7 +148,8 @@ jobs:
           fi
           
           # Generate image name and tags (lowercase for GHCR compatibility)
-          registry_base="${{ env.REGISTRY }}/${{ github.repository }}"
+          # Use repository owner instead of full repository path to avoid namespace issues
+          registry_base="${{ env.REGISTRY }}/${{ github.repository_owner }}"
           registry_base_lower=$(echo "$registry_base" | tr '[:upper:]' '[:lower:]')
           image_name="$registry_base_lower/$app"
           
@@ -219,7 +222,7 @@ jobs:
           echo "**Repository:** ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
           echo "**Images discovered:** ${{ needs.discover-images.outputs.count }}" >> $GITHUB_STEP_SUMMARY
           echo "**Build status:** ${{ needs.build-and-push.result }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Registry:** ${{ env.REGISTRY }}/${{ github.repository }}" | tr '[:upper:]' '[:lower:]' >> $GITHUB_STEP_SUMMARY
+          echo "**Registry:** ${{ env.REGISTRY }}/${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]' >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           if [[ "${{ needs.build-and-push.result }}" == "success" ]]; then
@@ -234,5 +237,5 @@ jobs:
           echo "### 📖 Usage" >> $GITHUB_STEP_SUMMARY
           echo "Pull your images with:" >> $GITHUB_STEP_SUMMARY
           echo '```bash' >> $GITHUB_STEP_SUMMARY
-          echo "docker pull ${{ env.REGISTRY }}/${{ github.repository }}/IMAGE_NAME:latest" | tr '[:upper:]' '[:lower:]' >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ env.REGISTRY }}/${{ github.repository_owner }}/IMAGE_NAME:latest" | tr '[:upper:]' '[:lower:]' >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
