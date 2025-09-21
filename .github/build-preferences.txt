@@ -1,0 +1,10 @@
+# Preferred images to auto-build (one per line)
+# Comments and empty lines are ignored
+# Add/remove applications as needed
+
+# Core infrastructure
+multus-cni
+redis
+mastodon
+minio
+thanos

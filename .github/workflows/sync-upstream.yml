@@ -1,0 +1,204 @@
+name: 'Sync with Upstream Bitnami'
+
+on:
+  schedule:
+    # Daily at 3 AM UTC (before auto-build runs at 6 AM)
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      force_sync:
+        description: 'Force sync even if no changes detected'
+        required: false
+        default: false
+        type: boolean
+      dry_run:
+        description: 'Dry run - show what would be synced without making changes'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  UPSTREAM_REPO: 'bitnami/containers'
+  UPSTREAM_BRANCH: 'main'
+
+jobs:
+  sync-upstream:
+    runs-on: ubuntu-latest
+    outputs:
+      changes-detected: ${{ steps.sync.outputs.changes-detected }}
+      files-changed: ${{ steps.sync.outputs.files-changed }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0  # Need full history for proper sync
+          
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+      - name: Add upstream remote
+        run: |
+          # Remove upstream if it exists
+          git remote remove upstream 2>/dev/null || true
+          
+          # Add upstream remote
+          git remote add upstream https://github.com/${{ env.UPSTREAM_REPO }}.git
+          echo "✅ Added upstream remote: ${{ env.UPSTREAM_REPO }}"
+          
+      - name: Fetch upstream changes
+        run: |
+          echo "🔄 Fetching upstream changes..."
+          git fetch upstream ${{ env.UPSTREAM_BRANCH }}
+          
+          # Check if there are any differences
+          if git diff --quiet HEAD upstream/${{ env.UPSTREAM_BRANCH }}; then
+            echo "✅ Repository is already up to date with upstream"
+            changes_detected="false"
+          else
+            echo "📝 Changes detected from upstream"
+            changes_detected="true"
+            
+            # Show what files would change
+            echo "Files that will be updated:"
+            git diff --name-only HEAD upstream/${{ env.UPSTREAM_BRANCH }} | head -20
+          fi
+          
+      - name: Sync with upstream
+        id: sync
+        run: |
+          if [[ "${changes_detected}" == "true" ]] || [[ "${{ github.event.inputs.force_sync }}" == "true" ]]; then
+            
+            if [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
+              echo "🔍 DRY RUN MODE - No changes will be made"
+              echo "Files that would be changed:"
+              git diff --name-only HEAD upstream/${{ env.UPSTREAM_BRANCH }}
+              
+              echo "Summary of changes:"
+              git diff --stat HEAD upstream/${{ env.UPSTREAM_BRANCH }}
+              
+              echo "changes-detected=true" >> $GITHUB_OUTPUT
+              echo "files-changed=$(git diff --name-only HEAD upstream/${{ env.UPSTREAM_BRANCH }} | wc -l)" >> $GITHUB_OUTPUT
+              
+            else
+              echo "🔄 Syncing with upstream..."
+              
+              # Get list of changed files before merge
+              changed_files=$(git diff --name-only HEAD upstream/${{ env.UPSTREAM_BRANCH }})
+              files_count=$(echo "$changed_files" | wc -l)
+              
+              # Perform the merge
+              if git merge upstream/${{ env.UPSTREAM_BRANCH }} --no-edit; then
+                echo "✅ Successfully merged upstream changes"
+                
+                # Push the changes
+                git push origin main
+                echo "✅ Changes pushed to origin"
+                
+                echo "changes-detected=true" >> $GITHUB_OUTPUT
+                echo "files-changed=$files_count" >> $GITHUB_OUTPUT
+                
+                # Create summary
+                echo "## 🔄 Upstream Sync Summary" >> $GITHUB_STEP_SUMMARY
+                echo "**Status:** ✅ Success" >> $GITHUB_STEP_SUMMARY
+                echo "**Files changed:** $files_count" >> $GITHUB_STEP_SUMMARY
+                echo "**Upstream:** ${{ env.UPSTREAM_REPO }}" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+                
+                # Show some of the changed files
+                echo "### 📝 Changed Files (first 10):" >> $GITHUB_STEP_SUMMARY
+                echo '```' >> $GITHUB_STEP_SUMMARY
+                echo "$changed_files" | head -10 >> $GITHUB_STEP_SUMMARY
+                echo '```' >> $GITHUB_STEP_SUMMARY
+                
+                if [[ $files_count -gt 10 ]]; then
+                  echo "... and $((files_count - 10)) more files" >> $GITHUB_STEP_SUMMARY
+                fi
+                
+              else
+                echo "❌ Merge conflicts detected!"
+                echo "This requires manual intervention."
+                
+                # Show conflicted files
+                echo "Conflicted files:"
+                git diff --name-only --diff-filter=U
+                
+                # Reset to avoid leaving repo in bad state
+                git merge --abort
+                
+                echo "## ⚠️ Sync Failed - Conflicts Detected" >> $GITHUB_STEP_SUMMARY
+                echo "**Status:** ❌ Failed" >> $GITHUB_STEP_SUMMARY
+                echo "**Reason:** Merge conflicts require manual resolution" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+                echo "### 🔧 Manual Action Required" >> $GITHUB_STEP_SUMMARY
+                echo "1. Clone the repository locally" >> $GITHUB_STEP_SUMMARY
+                echo "2. Run: \`git fetch upstream && git merge upstream/main\`" >> $GITHUB_STEP_SUMMARY
+                echo "3. Resolve conflicts manually" >> $GITHUB_STEP_SUMMARY
+                echo "4. Commit and push the resolved changes" >> $GITHUB_STEP_SUMMARY
+                
+                exit 1
+              fi
+            fi
+            
+          else
+            echo "✅ No changes detected, repository is up to date"
+            echo "changes-detected=false" >> $GITHUB_OUTPUT
+            echo "files-changed=0" >> $GITHUB_OUTPUT
+            
+            echo "## ✅ No Sync Needed" >> $GITHUB_STEP_SUMMARY
+            echo "Repository is already up to date with upstream." >> $GITHUB_STEP_SUMMARY
+          fi
+
+  trigger-build:
+    needs: sync-upstream
+    if: needs.sync-upstream.outputs.changes-detected == 'true' && github.event.inputs.dry_run != 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Trigger auto-build workflow
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const result = await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'auto-build-images.yml',
+              ref: 'main'
+            });
+            
+            console.log('✅ Triggered auto-build workflow');
+            
+            core.summary.addHeading('🚀 Auto-build Triggered', 3);
+            core.summary.addRaw('The auto-build workflow has been triggered due to upstream changes.');
+            core.summary.addRaw(`Files changed: ${{ needs.sync-upstream.outputs.files-changed }}`);
+            await core.summary.write();
+
+  notification:
+    needs: [sync-upstream, trigger-build]
+    if: always() && needs.sync-upstream.outputs.changes-detected == 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Create notification summary
+        run: |
+          echo "## 📢 Sync Notification" >> $GITHUB_STEP_SUMMARY
+          echo "**Timestamp:** $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "**Upstream:** ${{ env.UPSTREAM_REPO }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Changes:** ${{ needs.sync-upstream.outputs.files-changed }} files" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ needs.trigger-build.result }}" == "success" ]]; then
+            echo "**Auto-build:** ✅ Triggered successfully" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
+            echo "**Auto-build:** ⏸️ Skipped (dry run mode)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Auto-build:** ❌ Failed to trigger" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔗 Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "- Monitor the auto-build workflow for new container images" >> $GITHUB_STEP_SUMMARY
+          echo "- Check your GitHub Container Registry for updated images" >> $GITHUB_STEP_SUMMARY
+          echo "- Review any changes that might affect your custom configurations" >> $GITHUB_STEP_SUMMARY

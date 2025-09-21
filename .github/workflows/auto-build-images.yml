@@ -1,0 +1,233 @@
+name: 'Auto Build Container Images'
+
+on:
+  push:
+    branches: [ main ]
+    paths: 
+      - 'bitnami/*/Dockerfile'
+      - '.github/build-preferences.txt'
+      - '.github/workflows/auto-build-images.yml'
+  schedule:
+    # Daily at 6 AM UTC
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      force_rebuild:
+        description: 'Force rebuild all images'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  
+jobs:
+  discover-images:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.discover.outputs.matrix }}
+      count: ${{ steps.discover.outputs.count }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Smart Image Discovery
+        id: discover
+        run: |
+          images=()
+          
+          echo "🔍 Starting image discovery..."
+          
+          # Read preferred apps from build-preferences.txt
+          if [[ -f ".github/build-preferences.txt" ]]; then
+            echo "📋 Reading build preferences..."
+            preferred_apps=($(grep -v '^#' .github/build-preferences.txt | grep -v '^$' | tr -d ' '))
+            echo "Found ${#preferred_apps[@]} preferred applications"
+          else
+            echo "⚠️  No build-preferences.txt found, using fallback discovery..."
+            # Fallback - find first 10 available apps
+            preferred_apps=($(find bitnami -maxdepth 1 -type d -not -name "bitnami" | cut -d'/' -f2 | head -10))
+          fi
+          
+          echo "🔍 Looking for buildable images..."
+          for app in "${preferred_apps[@]}"; do
+            app_dir="bitnami/$app"
+            
+            if [[ -d "$app_dir" ]]; then
+              echo "  Checking: $app"
+              
+              # Find all Dockerfiles for this app and get the one with highest version
+              dockerfiles=($(find "$app_dir" -name "Dockerfile" -type f | sort -V))
+              
+              if [[ ${#dockerfiles[@]} -gt 0 ]]; then
+                # Take the latest version (last in sorted array)
+                latest_dockerfile="${dockerfiles[-1]}"
+                
+                # Extract components from path: bitnami/APP/VERSION/OS/Dockerfile
+                IFS='/' read -ra PARTS <<< "$latest_dockerfile"
+                app_name="${PARTS[1]}"
+                version="${PARTS[2]}"  
+                os="${PARTS[3]}"
+                
+                echo "    ✅ Found: $app_name v$version ($os)"
+                images+=("{\"app\":\"$app_name\",\"version\":\"$version\",\"os\":\"$os\",\"dockerfile\":\"$latest_dockerfile\"}")
+              else
+                echo "    ❌ No Dockerfile found for: $app"
+              fi
+            else
+              echo "    ❌ Directory not found: $app_dir"
+            fi
+          done
+          
+          # Create JSON matrix
+          if [[ ${#images[@]} -eq 0 ]]; then
+            matrix="[]"
+            count=0
+          else
+            matrix="[$(IFS=','; echo "${images[*]}")]"
+            count=${#images[@]}
+          fi
+          
+          echo "matrix=$matrix" >> $GITHUB_OUTPUT
+          echo "count=$count" >> $GITHUB_OUTPUT
+          
+          echo ""
+          echo "📋 Discovery Summary:"
+          echo "   Images found: $count"
+          echo "   Matrix: $matrix"
+
+  build-and-push:
+    needs: discover-images
+    if: needs.discover-images.outputs.count > 0
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        image: ${{ fromJSON(needs.discover-images.outputs.matrix) }}
+      fail-fast: false
+      max-parallel: 3  # Limit concurrent builds to avoid resource issues
+      
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Extract metadata and generate tags
+        id: meta
+        run: |
+          dockerfile="${{ matrix.image.dockerfile }}"
+          app="${{ matrix.image.app }}"
+          
+          echo "🔍 Processing: $app"
+          echo "📄 Dockerfile: $dockerfile"
+          
+          # Get version from Dockerfile label
+          app_version=$(grep -o 'org.opencontainers.image.version="[^"]*"' "$dockerfile" | cut -d'"' -f2 || echo "")
+          
+          # Fallback to directory version if label not found
+          if [[ -z "$app_version" ]]; then
+            app_version="${{ matrix.image.version }}"
+            echo "⚠️  No version label found, using directory version: $app_version"
+          else
+            echo "✅ Found version label: $app_version"
+          fi
+          
+          # Generate image name and tags
+          registry_base="${{ env.REGISTRY }}/${{ github.repository }}"
+          image_name="$registry_base/$app"
+          
+          # Create comprehensive tag list
+          tags="$image_name:latest"
+          tags="$tags,$image_name:$app_version"
+          
+          # Add version-specific tag if different from directory version
+          if [[ "$app_version" != "${{ matrix.image.version }}" ]]; then
+            tags="$tags,$image_name:${{ matrix.image.version }}"
+          fi
+          
+          # Add OS-specific tag
+          tags="$tags,$image_name:${{ matrix.image.version }}-${{ matrix.image.os }}"
+          
+          echo "image-name=$image_name" >> $GITHUB_OUTPUT
+          echo "version=$app_version" >> $GITHUB_OUTPUT
+          echo "tags=$tags" >> $GITHUB_OUTPUT
+          echo "context=$(dirname $dockerfile)" >> $GITHUB_OUTPUT
+          
+          echo "🏗️  Building: $app v$app_version"
+          echo "📦 Tags: $tags"
+          echo "📁 Context: $(dirname $dockerfile)"
+          
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ steps.meta.outputs.context }}
+          file: ${{ matrix.image.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: |
+            org.opencontainers.image.title=${{ matrix.image.app }}
+            org.opencontainers.image.description=Bitnami ${{ matrix.image.app }} container image (auto-built)
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
+            org.opencontainers.image.created=${{ fromJSON(steps.meta.outputs.json).created }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.licenses=Apache-2.0
+          cache-from: type=gha,scope=${{ matrix.image.app }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image.app }}
+          
+      - name: Generate build summary
+        if: success()
+        run: |
+          echo "### ✅ ${{ matrix.image.app }} v${{ steps.meta.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Registry:** ${{ steps.meta.outputs.image-name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Tags:** ${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Platforms:** linux/amd64, linux/arm64" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+      - name: Handle build failure
+        if: failure()
+        run: |
+          echo "### ❌ Failed: ${{ matrix.image.app }}" >> $GITHUB_STEP_SUMMARY
+          echo "Build failed for ${{ matrix.image.app }} v${{ steps.meta.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "Check the logs above for details." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+  build-summary:
+    needs: [discover-images, build-and-push]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate final summary  
+        run: |
+          echo "## 🚀 Auto Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Repository:** ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Images discovered:** ${{ needs.discover-images.outputs.count }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Build status:** ${{ needs.build-and-push.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Registry:** ${{ env.REGISTRY }}/${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ needs.build-and-push.result }}" == "success" ]]; then
+            echo "🎉 All images built successfully!" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ needs.build-and-push.result }}" == "failure" ]]; then
+            echo "⚠️ Some builds failed. Check individual job logs for details." >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ needs.discover-images.outputs.count }}" == "0" ]]; then
+            echo "ℹ️ No images found to build." >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📖 Usage" >> $GITHUB_STEP_SUMMARY
+          echo "Pull your images with:" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ env.REGISTRY }}/${{ github.repository }}/IMAGE_NAME:latest" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
