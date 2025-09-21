@@ -141,9 +141,10 @@ jobs:
             echo "✅ Found version label: $app_version"
           fi
           
-          # Generate image name and tags
+          # Generate image name and tags (lowercase for GHCR compatibility)
           registry_base="${{ env.REGISTRY }}/${{ github.repository }}"
-          image_name="$registry_base/$app"
+          registry_base_lower=$(echo "$registry_base" | tr '[:upper:]' '[:lower:]')
+          image_name="$registry_base_lower/$app"
           
           # Create comprehensive tag list
           tags="$image_name:latest"
@@ -214,7 +215,7 @@ jobs:
           echo "**Repository:** ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
           echo "**Images discovered:** ${{ needs.discover-images.outputs.count }}" >> $GITHUB_STEP_SUMMARY
           echo "**Build status:** ${{ needs.build-and-push.result }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Registry:** ${{ env.REGISTRY }}/${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Registry:** ${{ env.REGISTRY }}/${{ github.repository }}" | tr '[:upper:]' '[:lower:]' >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           if [[ "${{ needs.build-and-push.result }}" == "success" ]]; then
@@ -229,5 +230,5 @@ jobs:
           echo "### 📖 Usage" >> $GITHUB_STEP_SUMMARY
           echo "Pull your images with:" >> $GITHUB_STEP_SUMMARY
           echo '```bash' >> $GITHUB_STEP_SUMMARY
-          echo "docker pull ${{ env.REGISTRY }}/${{ github.repository }}/IMAGE_NAME:latest" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ env.REGISTRY }}/${{ github.repository }}/IMAGE_NAME:latest" | tr '[:upper:]' '[:lower:]' >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
