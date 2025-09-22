@@ -220,6 +220,13 @@ jobs:
           hide-progress: false
           exit-code: '0'  # Don't fail on HIGH, we'll check CRITICAL separately
           
+      - name: Clear Trivy environment
+        run: |
+          # Clear any Trivy environment variables from previous scan
+          unset TRIVY_SEVERITY TRIVY_FORMAT TRIVY_OUTPUT || true
+          echo "🧹 Cleared Trivy environment variables"
+          
+
       - name: Run Trivy CRITICAL-only scan for blocking decision
         id: trivy-critical
         continue-on-error: true
