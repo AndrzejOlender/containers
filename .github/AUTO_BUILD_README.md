@@ -19,14 +19,14 @@ This repository includes an automated system for building and publishing contain
 - Supports multi-architecture builds (amd64/arm64)
 
 > **Note**: Scheduled builds removed to save resources - builds only when needed!
-> **Security**: Images with CRITICAL or HIGH vulnerabilities are NOT published!
+> **Security**: Images with CRITICAL vulnerabilities are NOT published!
 
 ## 🛡️ Security Scanning
 
 All images are automatically scanned for security vulnerabilities using **Trivy** before publication:
 
-- **🔍 Scan Level**: CRITICAL and HIGH severity vulnerabilities
-- **🚫 Block Policy**: Images with critical/high vulnerabilities are NOT published
+- **🔍 Scan Level**: CRITICAL severity vulnerabilities
+- **🚫 Block Policy**: Images with critical vulnerabilities are NOT published
 - **📊 Reports**: Security scan results are uploaded to GitHub Security tab
 - **🔄 Process**: Build → Scan → Publish (only if secure)
 

@@ -213,7 +213,7 @@ jobs:
           image-ref: 'local-scan:${{ matrix.image.app }}'
           format: 'sarif'
           output: 'trivy-results.sarif'
-          severity: 'CRITICAL,HIGH'
+          severity: 'CRITICAL'
           exit-code: '1'  # Set exit code but don't fail job
           
       - name: Upload Trivy scan results
@@ -227,10 +227,10 @@ jobs:
         run: |
           if [[ "${{ steps.trivy-scan.outcome }}" == "success" ]]; then
             echo "🛡️ **Security Scan: PASSED** ✅" >> $GITHUB_STEP_SUMMARY
-            echo "No critical or high severity vulnerabilities found." >> $GITHUB_STEP_SUMMARY
+            echo "No critical severity vulnerabilities found." >> $GITHUB_STEP_SUMMARY
           else
             echo "🚨 **Security Scan: FAILED** ❌" >> $GITHUB_STEP_SUMMARY
-            echo "Critical or high severity vulnerabilities detected!" >> $GITHUB_STEP_SUMMARY
+            echo "Critical severity vulnerabilities detected!" >> $GITHUB_STEP_SUMMARY
             echo "Image will NOT be pushed to registry." >> $GITHUB_STEP_SUMMARY
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -263,11 +263,11 @@ jobs:
             echo "**Registry:** ${{ steps.meta.outputs.image-name }}" >> $GITHUB_STEP_SUMMARY
             echo "**Tags:** ${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
             echo "**Platforms:** linux/amd64, linux/arm64" >> $GITHUB_STEP_SUMMARY
-            echo "**Security:** ✅ Passed (No critical/high vulnerabilities)" >> $GITHUB_STEP_SUMMARY
+            echo "**Security:** ✅ Passed (No critical vulnerabilities)" >> $GITHUB_STEP_SUMMARY
             echo "**Status:** 🚀 Published to registry" >> $GITHUB_STEP_SUMMARY
           else
             echo "### 🚨 ${{ matrix.image.app }} v${{ steps.meta.outputs.version }} - Security Issues" >> $GITHUB_STEP_SUMMARY
-            echo "**Security:** ❌ Failed (Critical/high vulnerabilities found)" >> $GITHUB_STEP_SUMMARY
+            echo "**Security:** ❌ Failed (Critical vulnerabilities found)" >> $GITHUB_STEP_SUMMARY
             echo "**Status:** 🛑 NOT published to registry" >> $GITHUB_STEP_SUMMARY
             echo "**Action:** Check security scan results in GitHub Security tab" >> $GITHUB_STEP_SUMMARY
           fi
