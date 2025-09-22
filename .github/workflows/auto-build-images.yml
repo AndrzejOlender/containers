@@ -7,9 +7,6 @@ on:
       - 'bitnami/**/Dockerfile'
       - '.github/build-preferences.txt'
       - '.github/workflows/auto-build-images.yml'
-  schedule:
-    # Daily at 6 AM UTC
-    - cron: '0 6 * * *'
   workflow_dispatch:
     inputs:
       force_rebuild:
@@ -57,38 +54,26 @@ jobs:
             preferred_apps=($(find bitnami -maxdepth 1 -type d -not -name "bitnami" | cut -d'/' -f2 | head -10))
           fi
           
-          # Determine which files changed based on trigger
-          changed_files=()
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            echo "🔄 Push trigger - checking changed files..."
-            # Get changed files from push event
-            changed_files=($(git diff --name-only HEAD~1 HEAD | grep "bitnami/.*/Dockerfile" || true))
-            echo "Changed Dockerfiles: ${changed_files[*]}"
-          elif [[ "${{ github.event_name }}" == "schedule" ]]; then
-            echo "⏰ Scheduled trigger - building all preferred images..."
-            # For scheduled runs, build all preferred apps
-            for app in "${preferred_apps[@]}"; do
-              app_dir="bitnami/$app"
-              if [[ -d "$app_dir" ]]; then
-                dockerfiles=($(find "$app_dir" -name "Dockerfile" -type f | sort -V))
-                if [[ ${#dockerfiles[@]} -gt 0 ]]; then
-                  changed_files+=("${dockerfiles[-1]}")  # Add latest dockerfile
+            # Determine which files changed based on trigger
+            changed_files=()
+            if [[ "${{ github.event_name }}" == "push" ]]; then
+              echo "🔄 Push trigger - checking changed files..."
+              # Get changed files from push event
+              changed_files=($(git diff --name-only HEAD~1 HEAD | grep "bitnami/.*/Dockerfile" || true))
+              echo "Changed Dockerfiles: ${changed_files[*]}"
+            else
+              echo "🔧 Manual trigger - building all preferred images..."
+              # For manual runs, build all preferred apps
+              for app in "${preferred_apps[@]}"; do
+                app_dir="bitnami/$app"
+                if [[ -d "$app_dir" ]]; then
+                  dockerfiles=($(find "$app_dir" -name "Dockerfile" -type f | sort -V))
+                  if [[ ${#dockerfiles[@]} -gt 0 ]]; then
+                    changed_files+=("${dockerfiles[-1]}")  # Add latest dockerfile
+                  fi
                 fi
-              fi
-            done
-          else
-            echo "🔧 Manual trigger - building all preferred images..."
-            # For manual runs, build all preferred apps
-            for app in "${preferred_apps[@]}"; do
-              app_dir="bitnami/$app"
-              if [[ -d "$app_dir" ]]; then
-                dockerfiles=($(find "$app_dir" -name "Dockerfile" -type f | sort -V))
-                if [[ ${#dockerfiles[@]} -gt 0 ]]; then
-                  changed_files+=("${dockerfiles[-1]}")  # Add latest dockerfile
-                fi
-              fi
-            done
-          fi
+              done
+            fi
           
           echo "🔍 Processing changed files..."
           for dockerfile in "${changed_files[@]}"; do
