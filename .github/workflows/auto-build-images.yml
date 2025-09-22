@@ -42,7 +42,7 @@ jobs:
         run: |
           images=()
           
-          echo "🔍 Starting image discovery..."
+          echo "🔍 Starting smart image discovery..."
           
           # Read preferred apps from build-preferences.txt
           if [[ -f ".github/build-preferences.txt" ]]; then
@@ -55,33 +55,55 @@ jobs:
             preferred_apps=($(find bitnami -maxdepth 1 -type d -not -name "bitnami" | cut -d'/' -f2 | head -10))
           fi
           
-          echo "🔍 Looking for buildable images..."
-          for app in "${preferred_apps[@]}"; do
-            app_dir="bitnami/$app"
-            
-            if [[ -d "$app_dir" ]]; then
-              echo "  Checking: $app"
-              
-              # Find all Dockerfiles for this app and get the one with highest version
-              dockerfiles=($(find "$app_dir" -name "Dockerfile" -type f | sort -V))
-              
-              if [[ ${#dockerfiles[@]} -gt 0 ]]; then
-                # Take the latest version (last in sorted array)
-                latest_dockerfile="${dockerfiles[-1]}"
-                
-                # Extract components from path: bitnami/APP/VERSION/OS/Dockerfile
-                IFS='/' read -ra PARTS <<< "$latest_dockerfile"
-                app_name="${PARTS[1]}"
-                version="${PARTS[2]}"  
-                os="${PARTS[3]}"
-                
-                echo "    ✅ Found: $app_name v$version ($os)"
-                images+=("{\"app\":\"$app_name\",\"version\":\"$version\",\"os\":\"$os\",\"dockerfile\":\"$latest_dockerfile\"}")
-              else
-                echo "    ❌ No Dockerfile found for: $app"
+          # Determine which files changed based on trigger
+          changed_files=()
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "🔄 Push trigger - checking changed files..."
+            # Get changed files from push event
+            changed_files=($(git diff --name-only HEAD~1 HEAD | grep "bitnami/.*/Dockerfile" || true))
+            echo "Changed Dockerfiles: ${changed_files[*]}"
+          elif [[ "${{ github.event_name }}" == "schedule" ]]; then
+            echo "⏰ Scheduled trigger - building all preferred images..."
+            # For scheduled runs, build all preferred apps
+            for app in "${preferred_apps[@]}"; do
+              app_dir="bitnami/$app"
+              if [[ -d "$app_dir" ]]; then
+                dockerfiles=($(find "$app_dir" -name "Dockerfile" -type f | sort -V))
+                if [[ ${#dockerfiles[@]} -gt 0 ]]; then
+                  changed_files+=("${dockerfiles[-1]}")  # Add latest dockerfile
+                fi
               fi
-            else
-              echo "    ❌ Directory not found: $app_dir"
+            done
+          else
+            echo "🔧 Manual trigger - building all preferred images..."
+            # For manual runs, build all preferred apps
+            for app in "${preferred_apps[@]}"; do
+              app_dir="bitnami/$app"
+              if [[ -d "$app_dir" ]]; then
+                dockerfiles=($(find "$app_dir" -name "Dockerfile" -type f | sort -V))
+                if [[ ${#dockerfiles[@]} -gt 0 ]]; then
+                  changed_files+=("${dockerfiles[-1]}")  # Add latest dockerfile
+                fi
+              fi
+            done
+          fi
+          
+          echo "🔍 Processing changed files..."
+          for dockerfile in "${changed_files[@]}"; do
+            if [[ -f "$dockerfile" ]]; then
+              # Extract app name from path: bitnami/APP/VERSION/OS/Dockerfile
+              IFS='/' read -ra PARTS <<< "$dockerfile"
+              app_name="${PARTS[1]}"
+              version="${PARTS[2]}"  
+              os="${PARTS[3]}"
+              
+              # Check if this app is in our preferred list
+              if [[ " ${preferred_apps[*]} " =~ " ${app_name} " ]]; then
+                echo "  ✅ Changed and preferred: $app_name v$version ($os)"
+                images+=("{\"app\":\"$app_name\",\"version\":\"$version\",\"os\":\"$os\",\"dockerfile\":\"$dockerfile\"}")
+              else
+                echo "  ⏭️  Changed but not in preferences: $app_name (skipping)"
+              fi
             fi
           done
           
