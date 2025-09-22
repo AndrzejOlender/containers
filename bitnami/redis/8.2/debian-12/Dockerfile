@@ -60,4 +60,3 @@ EXPOSE 6379
 USER 1001
 ENTRYPOINT [ "/opt/bitnami/scripts/redis/entrypoint.sh" ]
 CMD [ "/opt/bitnami/scripts/redis/run.sh" ]
-# Test selective build - Mon Sep 22 10:36:14 CEST 2025
