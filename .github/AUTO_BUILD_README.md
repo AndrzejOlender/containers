@@ -14,10 +14,28 @@ This repository includes an automated system for building and publishing contain
 - Triggers when Dockerfiles change (push events)
 - Can be run manually via GitHub Actions UI
 - Builds only changed images from `build-preferences.txt` (selective builds)
-- Publishes to GitHub Container Registry (`ghcr.io`)
+- **🛡️ Security scanning with Trivy** - blocks vulnerable images
+- Publishes to GitHub Container Registry (`ghcr.io`) only if security scan passes
 - Supports multi-architecture builds (amd64/arm64)
 
 > **Note**: Scheduled builds removed to save resources - builds only when needed!
+> **Security**: Images with CRITICAL or HIGH vulnerabilities are NOT published!
+
+## 🛡️ Security Scanning
+
+All images are automatically scanned for security vulnerabilities using **Trivy** before publication:
+
+- **🔍 Scan Level**: CRITICAL and HIGH severity vulnerabilities
+- **🚫 Block Policy**: Images with critical/high vulnerabilities are NOT published
+- **📊 Reports**: Security scan results are uploaded to GitHub Security tab
+- **🔄 Process**: Build → Scan → Publish (only if secure)
+
+### Security Scan Results
+
+You can view detailed security reports in:
+- **GitHub Actions logs** - Real-time scan output
+- **Security tab** - SARIF reports with vulnerability details
+- **Build summaries** - Quick pass/fail status
 
 ## 🎯 Configuration
 
