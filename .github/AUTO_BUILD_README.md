@@ -11,10 +11,13 @@ This repository includes an automated system for building and publishing contain
 - Can be run manually with dry-run option
 
 ### 2. **Auto Build** (`auto-build-images.yml`)  
-- Runs daily at 6 AM UTC (after sync)
-- Builds container images based on `build-preferences.txt`
+- Triggers when Dockerfiles change (push events)
+- Can be run manually via GitHub Actions UI
+- Builds only changed images from `build-preferences.txt` (selective builds)
 - Publishes to GitHub Container Registry (`ghcr.io`)
 - Supports multi-architecture builds (amd64/arm64)
+
+> **Note**: Scheduled builds removed to save resources - builds only when needed!
 
 ## 🎯 Configuration
 
