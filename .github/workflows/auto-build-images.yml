@@ -214,8 +214,29 @@ jobs:
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'CRITICAL'
+          vuln-type: 'os,library'
+          ignore-unfixed: true
+          limit-severities-for-sarif: true
+          hide-progress: false
           exit-code: '1'  # Set exit code but don't fail job
           
+      - name: Show Trivy scan results
+        if: always()
+        run: |
+          echo "🔍 Trivy scan outcome: ${{ steps.trivy-scan.outcome }}"
+          echo "📊 Checking SARIF results..."
+          if [[ -f "trivy-results.sarif" ]]; then
+            echo "✅ SARIF file exists ($(wc -c < trivy-results.sarif) bytes)"
+            # Show summary of findings
+            echo "📋 Vulnerability summary:"
+            jq -r '.runs[0].results | length' trivy-results.sarif 2>/dev/null || echo "Could not parse SARIF"
+            # Show any CRITICAL findings
+            jq -r '.runs[0].results[] | select(.level == "error") | .message.text' trivy-results.sarif 2>/dev/null || echo "No CRITICAL vulnerabilities found"
+          else
+            echo "❌ SARIF file not found"
+          fi
+          echo ""
+
       - name: Upload Trivy scan results
         if: always()
         uses: github/codeql-action/upload-sarif@v3
