@@ -63,4 +63,3 @@ EXPOSE 3000
 USER 1001
 ENTRYPOINT [ "/opt/bitnami/scripts/mastodon/entrypoint.sh" ]
 CMD [ "/opt/bitnami/scripts/mastodon/run.sh" ]
-# Test selective build - Mon Sep 22 10:27:06 CEST 2025
