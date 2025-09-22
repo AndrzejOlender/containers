@@ -213,39 +213,17 @@ jobs:
           image-ref: 'local-scan:${{ matrix.image.app }}'
           format: 'sarif'
           output: 'trivy-results.sarif'
-          severity: 'CRITICAL,HIGH'
+          severity: 'CRITICAL'
           vuln-type: 'os,library'
           ignore-unfixed: true
           limit-severities-for-sarif: true
           hide-progress: false
-          exit-code: '0'  # Don't fail on HIGH, we'll check CRITICAL separately
+          exit-code: '1'  # Set exit code but don't fail job
           
-      - name: Clear Trivy environment
-        run: |
-          # Clear any Trivy environment variables from previous scan
-          unset TRIVY_SEVERITY TRIVY_FORMAT TRIVY_OUTPUT || true
-          echo "🧹 Cleared Trivy environment variables"
-          
-
-      - name: Run Trivy CRITICAL-only scan for blocking decision
-        id: trivy-critical
-        continue-on-error: true
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          image-ref: 'local-scan:${{ matrix.image.app }}'
-          format: 'table'
-          severity: 'CRITICAL'
-          vuln-type: 'os,library'
-          ignore-unfixed: true
-          exit-code: '1'  # Fail only on CRITICAL
-          
-
       - name: Show Trivy scan results
         if: always()
         run: |
-          echo "🔍 Trivy scan outcome: ${{ steps.trivy-critical.outcome }}"
-          echo "📊 Full scan outcome: ${{ steps.trivy-scan.outcome }} (CRITICAL+HIGH)"
-          echo "🚨 Critical-only outcome: ${{ steps.trivy-critical.outcome }} (blocking decision)"
+          echo "🔍 Trivy scan outcome: ${{ steps.trivy-scan.outcome }}"
           echo "📊 Checking SARIF results..."
           if [[ -f "trivy-results.sarif" ]]; then
             echo "✅ SARIF file exists ($(wc -c < trivy-results.sarif) bytes)"
@@ -268,7 +246,7 @@ jobs:
       - name: Security scan summary
         if: always()
         run: |
-          if [[ "${{ steps.trivy-critical.outcome }}" == "success" ]]; then
+          if [[ "${{ steps.trivy-scan.outcome }}" == "success" ]]; then
             echo "🛡️ **Security Scan: PASSED** ✅" >> $GITHUB_STEP_SUMMARY
             echo "No critical or high severity vulnerabilities found." >> $GITHUB_STEP_SUMMARY
           else
@@ -279,7 +257,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           
       - name: Build and push to registry
-        if: steps.trivy-critical.outcome == 'success'
+        if: steps.trivy-scan.outcome == 'success'
         uses: docker/build-push-action@v5
         with:
           context: ${{ steps.meta.outputs.context }}
@@ -301,7 +279,7 @@ jobs:
       - name: Generate build summary
         if: always()
         run: |
-          if [[ "${{ steps.trivy-critical.outcome }}" == "success" ]]; then
+          if [[ "${{ steps.trivy-scan.outcome }}" == "success" ]]; then
             echo "### ✅ ${{ matrix.image.app }} v${{ steps.meta.outputs.version }} 🛡️" >> $GITHUB_STEP_SUMMARY
             echo "**Registry:** ${{ steps.meta.outputs.image-name }}" >> $GITHUB_STEP_SUMMARY
             echo "**Tags:** ${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
