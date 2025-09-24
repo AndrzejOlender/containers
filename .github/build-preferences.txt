@@ -7,5 +7,6 @@ multus-cni
 redis
 redis-exporter
 mastodon
+apache
 minio
 thanos
