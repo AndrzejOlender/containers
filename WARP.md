@@ -1,0 +1,1 @@
+Nie stosuj emoticon w output
