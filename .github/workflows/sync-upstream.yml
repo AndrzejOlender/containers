@@ -50,6 +50,7 @@ jobs:
           echo "✅ Added upstream remote: ${{ env.UPSTREAM_REPO }}"
           
       - name: Fetch upstream changes
+        id: fetch
         run: |
           echo "🔄 Fetching upstream changes..."
           git fetch upstream ${{ env.UPSTREAM_BRANCH }}
@@ -57,10 +58,10 @@ jobs:
           # Check if there are any differences
           if git diff --quiet HEAD upstream/${{ env.UPSTREAM_BRANCH }}; then
             echo "✅ Repository is already up to date with upstream"
-            changes_detected="false"
+            echo "changes-detected=false" >> $GITHUB_OUTPUT
           else
             echo "📝 Changes detected from upstream"
-            changes_detected="true"
+            echo "changes-detected=true" >> $GITHUB_OUTPUT
             
             # Show what files would change
             echo "Files that will be updated:"
@@ -70,7 +71,7 @@ jobs:
       - name: Sync with upstream
         id: sync
         run: |
-          if [[ "${changes_detected}" == "true" ]] || [[ "${{ github.event.inputs.force_sync }}" == "true" ]]; then
+          if [[ "${{ steps.fetch.outputs.changes-detected }}" == "true" ]] || [[ "${{ github.event.inputs.force_sync }}" == "true" ]]; then
             
             if [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
               echo "🔍 DRY RUN MODE - No changes will be made"
