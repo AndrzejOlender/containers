@@ -4,8 +4,6 @@
 
 # Core infrastructure
 multus-cni
-redis
-redis-exporter
 mastodon
 apache
 minio
