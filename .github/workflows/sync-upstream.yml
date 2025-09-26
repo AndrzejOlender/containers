@@ -153,32 +153,9 @@ jobs:
             echo "Repository is already up to date with upstream." >> $GITHUB_STEP_SUMMARY
           fi
 
-  trigger-build:
-    needs: sync-upstream
-    if: needs.sync-upstream.outputs.changes-detected == 'true' && github.event.inputs.dry_run != 'true'
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Trigger auto-build workflow
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const result = await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'auto-build-images.yml',
-              ref: 'main'
-            });
-            
-            console.log('✅ Triggered auto-build workflow');
-            
-            core.summary.addHeading('🚀 Auto-build Triggered', 3);
-            core.summary.addRaw('The auto-build workflow has been triggered due to upstream changes.');
-            core.summary.addRaw(`Files changed: ${{ needs.sync-upstream.outputs.files-changed }}`);
-            await core.summary.write();
 
   notification:
-    needs: [sync-upstream, trigger-build]
+    needs: sync-upstream
     if: always() && needs.sync-upstream.outputs.changes-detected == 'true'
     runs-on: ubuntu-latest
     
@@ -190,16 +167,15 @@ jobs:
           echo "**Upstream:** ${{ env.UPSTREAM_REPO }}" >> $GITHUB_STEP_SUMMARY
           echo "**Changes:** ${{ needs.sync-upstream.outputs.files-changed }} files" >> $GITHUB_STEP_SUMMARY
           
-          if [[ "${{ needs.trigger-build.result }}" == "success" ]]; then
-            echo "**Auto-build:** ✅ Triggered successfully" >> $GITHUB_STEP_SUMMARY
-          elif [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
+          if [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
             echo "**Auto-build:** ⏸️ Skipped (dry run mode)" >> $GITHUB_STEP_SUMMARY
           else
-            echo "**Auto-build:** ❌ Failed to trigger" >> $GITHUB_STEP_SUMMARY
+            echo "**Auto-build:** 🚀 Will be triggered automatically by push" >> $GITHUB_STEP_SUMMARY
           fi
           
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 🔗 Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "- Auto-build workflow will start automatically due to push trigger" >> $GITHUB_STEP_SUMMARY
           echo "- Monitor the auto-build workflow for new container images" >> $GITHUB_STEP_SUMMARY
           echo "- Check your GitHub Container Registry for updated images" >> $GITHUB_STEP_SUMMARY
           echo "- Review any changes that might affect your custom configurations" >> $GITHUB_STEP_SUMMARY
