@@ -7,13 +7,13 @@ ARG DOWNLOADS_URL="downloads.bitnami.com/files/stacksmith"
 ARG TARGETARCH
 
 LABEL org.opencontainers.image.base.name="docker.io/bitnami/minideb:bookworm" \
-      org.opencontainers.image.created="2025-10-13T23:16:30Z" \
+      org.opencontainers.image.created="2025-10-31T10:36:55Z" \
       org.opencontainers.image.description="Application packaged by Broadcom, Inc." \
-      org.opencontainers.image.documentation="https://github.com/bitnami/containers/tree/main/bitnami/apisix-dashboard/README.md" \
-      org.opencontainers.image.source="https://github.com/bitnami/containers/tree/main/bitnami/apisix-dashboard" \
-      org.opencontainers.image.title="apisix-dashboard" \
+      org.opencontainers.image.documentation="https://github.com/bitnami/containers/tree/main/bitnami/valkey/README.md" \
+      org.opencontainers.image.source="https://github.com/bitnami/containers/tree/main/bitnami/valkey" \
+      org.opencontainers.image.title="valkey" \
       org.opencontainers.image.vendor="Broadcom, Inc." \
-      org.opencontainers.image.version="3.0.1"
+      org.opencontainers.image.version="9.0.0"
 
 ENV HOME="/" \
     OS_ARCH="${TARGETARCH:-amd64}" \
@@ -23,12 +23,13 @@ ENV HOME="/" \
 COPY prebuildfs /
 SHELL ["/bin/bash", "-o", "errexit", "-o", "nounset", "-o", "pipefail", "-c"]
 # Install required system packages and dependencies
-RUN install_packages ca-certificates curl procps
+RUN install_packages ca-certificates curl libgomp1 libssl3 procps
 RUN --mount=type=secret,id=downloads_url,env=SECRET_DOWNLOADS_URL \
     DOWNLOADS_URL=${SECRET_DOWNLOADS_URL:-${DOWNLOADS_URL}} ; \
     mkdir -p /tmp/bitnami/pkg/cache/ ; cd /tmp/bitnami/pkg/cache/ || exit 1 ; \
     COMPONENTS=( \
-      "apisix-dashboard-3.0.1-53-linux-${OS_ARCH}-debian-12" \
+      "wait-for-port-1.0.10-3-linux-${OS_ARCH}-debian-12" \
+      "valkey-9.0.0-0-linux-${OS_ARCH}-debian-12" \
     ) ; \
     for COMPONENT in "${COMPONENTS[@]}"; do \
       if [ ! -f "${COMPONENT}.tar.gz" ]; then \
@@ -39,18 +40,23 @@ RUN --mount=type=secret,id=downloads_url,env=SECRET_DOWNLOADS_URL \
       tar -zxf "${COMPONENT}.tar.gz" -C /opt/bitnami --strip-components=2 --no-same-owner ; \
       rm -rf "${COMPONENT}".tar.gz{,.sha256} ; \
     done
-RUN mkdir -p /opt/bitnami/apisix-dashboard/logs && chmod g+rwX /opt/bitnami/apisix-dashboard/logs
 RUN apt-get update && apt-get upgrade -y && \
     apt-get clean && rm -rf /var/lib/apt/lists /var/cache/apt/archives
-RUN useradd -r -u 1001 -g root apisix-dashboard
+RUN chmod g+rwX /opt/bitnami
 RUN find / -perm /6000 -type f -exec chmod a-s {} \; || true
+RUN ln -s /opt/bitnami/scripts/valkey/entrypoint.sh /entrypoint.sh
+RUN ln -s /opt/bitnami/scripts/valkey/run.sh /run.sh
 RUN uninstall_packages curl
 
-ENV APP_VERSION="3.0.1" \
-    BITNAMI_APP_NAME="apisix-dashboard" \
-    IMAGE_REVISION="85" \
-    PATH="/opt/bitnami/apisix-dashboard:$PATH"
+COPY rootfs /
+RUN /opt/bitnami/scripts/valkey/postunpack.sh
+ENV APP_VERSION="9.0.0" \
+    BITNAMI_APP_NAME="valkey" \
+    IMAGE_REVISION="0" \
+    PATH="/opt/bitnami/common/bin:/opt/bitnami/valkey/bin:$PATH"
 
-WORKDIR /opt/bitnami/apisix-dashboard
+EXPOSE 6379
+
 USER 1001
-ENTRYPOINT [ "/opt/bitnami/apisix-dashboard/manager-api" ]
+ENTRYPOINT [ "/opt/bitnami/scripts/valkey/entrypoint.sh" ]
+CMD [ "/opt/bitnami/scripts/valkey/run.sh" ]
