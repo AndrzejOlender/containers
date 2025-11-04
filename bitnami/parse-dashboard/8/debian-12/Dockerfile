@@ -7,27 +7,30 @@ ARG DOWNLOADS_URL="downloads.bitnami.com/files/stacksmith"
 ARG TARGETARCH
 
 LABEL org.opencontainers.image.base.name="docker.io/bitnami/minideb:bookworm" \
-      org.opencontainers.image.created="2025-11-04T03:05:46Z" \
+      org.opencontainers.image.created="2025-11-03T09:53:56Z" \
       org.opencontainers.image.description="Application packaged by Broadcom, Inc." \
-      org.opencontainers.image.documentation="https://github.com/bitnami/containers/tree/main/bitnami/concourse/README.md" \
-      org.opencontainers.image.source="https://github.com/bitnami/containers/tree/main/bitnami/concourse" \
-      org.opencontainers.image.title="concourse" \
+      org.opencontainers.image.documentation="https://github.com/bitnami/containers/tree/main/bitnami/parse-dashboard/README.md" \
+      org.opencontainers.image.source="https://github.com/bitnami/containers/tree/main/bitnami/parse-dashboard" \
+      org.opencontainers.image.title="parse-dashboard" \
       org.opencontainers.image.vendor="Broadcom, Inc." \
-      org.opencontainers.image.version="7.14.2"
+      org.opencontainers.image.version="8.0.0"
 
-ENV OS_ARCH="${TARGETARCH:-amd64}" \
+ENV HOME="/" \
+    OS_ARCH="${TARGETARCH:-amd64}" \
     OS_FLAVOUR="debian-12" \
     OS_NAME="linux"
 
 COPY prebuildfs /
 SHELL ["/bin/bash", "-o", "errexit", "-o", "nounset", "-o", "pipefail", "-c"]
 # Install required system packages and dependencies
-RUN install_packages ca-certificates curl iproute2 iptables libseccomp2 procps
+RUN install_packages ca-certificates curl jq libbz2-1.0 libffi8 libgcc-s1 liblzma5 libncursesw6 libreadline8 libsqlite3-0 libssl3 libstdc++6 libtinfo6 procps zlib1g
 RUN --mount=type=secret,id=downloads_url,env=SECRET_DOWNLOADS_URL \
     DOWNLOADS_URL=${SECRET_DOWNLOADS_URL:-${DOWNLOADS_URL}} ; \
     mkdir -p /tmp/bitnami/pkg/cache/ ; cd /tmp/bitnami/pkg/cache/ || exit 1 ; \
     COMPONENTS=( \
-      "concourse-7.14.2-8-linux-${OS_ARCH}-debian-12" \
+      "python-3.14.0-5-linux-${OS_ARCH}-debian-12" \
+      "node-24.11.0-0-linux-${OS_ARCH}-debian-12" \
+      "parse-dashboard-8.0.0-0-linux-${OS_ARCH}-debian-12" \
     ) ; \
     for COMPONENT in "${COMPONENTS[@]}"; do \
       if [ ! -f "${COMPONENT}.tar.gz" ]; then \
@@ -40,14 +43,19 @@ RUN --mount=type=secret,id=downloads_url,env=SECRET_DOWNLOADS_URL \
     done
 RUN apt-get update && apt-get upgrade -y && \
     apt-get clean && rm -rf /var/lib/apt/lists /var/cache/apt/archives
+RUN chmod g+rwX /opt/bitnami
 RUN find / -perm /6000 -type f -exec chmod a-s {} \; || true
-RUN touch /.flyrc && chmod g+rwX /.flyrc
-RUN update-alternatives --set iptables /usr/sbin/iptables-legacy && \
-    update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
+RUN mkdir /.local && chmod g+rwX /.local
 
-ENV APP_VERSION="7.14.2" \
-    BITNAMI_APP_NAME="concourse" \
-    IMAGE_REVISION="8" \
-    PATH="/opt/bitnami/concourse/bin:$PATH"
+COPY rootfs /
+RUN /opt/bitnami/scripts/parse-dashboard/postunpack.sh
+ENV APP_VERSION="8.0.0" \
+    BITNAMI_APP_NAME="parse-dashboard" \
+    IMAGE_REVISION="0" \
+    PATH="/opt/bitnami/python/bin:/opt/bitnami/node/bin:/opt/bitnami/parse-dashboard/bin:$PATH"
 
-CMD [ "/opt/bitnami/concourse/bin/concourse", "--help" ]
+EXPOSE 3000 4040
+
+USER 1001
+ENTRYPOINT [ "/opt/bitnami/scripts/parse-dashboard/entrypoint.sh" ]
+CMD [ "/opt/bitnami/scripts/parse-dashboard/run.sh" ]
