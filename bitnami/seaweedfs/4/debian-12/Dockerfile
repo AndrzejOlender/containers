@@ -7,15 +7,15 @@ ARG DOWNLOADS_URL="downloads.bitnami.com/files/stacksmith"
 ARG TARGETARCH
 
 LABEL org.opencontainers.image.base.name="docker.io/bitnami/minideb:bookworm" \
-      org.opencontainers.image.created="2025-10-31T10:58:41Z" \
+      org.opencontainers.image.created="2025-11-04T08:47:50Z" \
       org.opencontainers.image.description="Application packaged by Broadcom, Inc." \
-      org.opencontainers.image.documentation="https://github.com/bitnami/containers/tree/main/bitnami/grafana-image-renderer/README.md" \
-      org.opencontainers.image.source="https://github.com/bitnami/containers/tree/main/bitnami/grafana-image-renderer" \
-      org.opencontainers.image.title="grafana-image-renderer" \
+      org.opencontainers.image.documentation="https://github.com/bitnami/containers/tree/main/bitnami/seaweedfs/README.md" \
+      org.opencontainers.image.source="https://github.com/bitnami/containers/tree/main/bitnami/seaweedfs" \
+      org.opencontainers.image.title="seaweedfs" \
       org.opencontainers.image.vendor="Broadcom, Inc." \
-      org.opencontainers.image.version="4.1.5"
+      org.opencontainers.image.version="4.0.0"
 
-ENV HOME="/" \
+ENV HOME="/opt/bitnami/seaweedfs" \
     OS_ARCH="${TARGETARCH:-amd64}" \
     OS_FLAVOUR="debian-12" \
     OS_NAME="linux"
@@ -23,14 +23,12 @@ ENV HOME="/" \
 COPY prebuildfs /
 SHELL ["/bin/bash", "-o", "errexit", "-o", "nounset", "-o", "pipefail", "-c"]
 # Install required system packages and dependencies
-RUN install_packages ca-certificates chromium curl fonts-freefont-ttf fonts-ipafont-gothic fonts-kacst fonts-thai-tlwg fonts-wqy-zenhei gnupg jq libbz2-1.0 libffi8 libgcc-s1 liblzma5 libncursesw6 libreadline8 libsqlite3-0 libssl3 libstdc++6 libtinfo6 libx11-xcb1 libxcb-dri3-0 libxshmfence1 libxss1 libxtst6 procps wget zlib1g
+RUN install_packages ca-certificates curl procps
 RUN --mount=type=secret,id=downloads_url,env=SECRET_DOWNLOADS_URL \
     DOWNLOADS_URL=${SECRET_DOWNLOADS_URL:-${DOWNLOADS_URL}} ; \
     mkdir -p /tmp/bitnami/pkg/cache/ ; cd /tmp/bitnami/pkg/cache/ || exit 1 ; \
     COMPONENTS=( \
-      "python-3.14.0-5-linux-${OS_ARCH}-debian-12" \
-      "node-22.21.1-0-linux-${OS_ARCH}-debian-12" \
-      "grafana-image-renderer-4.1.5-0-linux-${OS_ARCH}-debian-12" \
+      "seaweedfs-4.0.0-0-linux-${OS_ARCH}-debian-12" \
     ) ; \
     for COMPONENT in "${COMPONENTS[@]}"; do \
       if [ ! -f "${COMPONENT}.tar.gz" ]; then \
@@ -45,18 +43,17 @@ RUN apt-get update && apt-get upgrade -y && \
     apt-get clean && rm -rf /var/lib/apt/lists /var/cache/apt/archives
 RUN chmod g+rwX /opt/bitnami
 RUN find / -perm /6000 -type f -exec chmod a-s {} \; || true
+RUN mkdir -p /data /tmp && chmod g+rwX /data /tmp
 RUN uninstall_packages curl
 
-ENV APP_VERSION="4.1.5" \
-    BITNAMI_APP_NAME="grafana-image-renderer" \
-    HTTP_HOST="0.0.0.0" \
-    HTTP_PORT="8080" \
+ENV APP_VERSION="4.0.0" \
+    BITNAMI_APP_NAME="seaweedfs" \
     IMAGE_REVISION="0" \
-    PATH="/opt/bitnami/python/bin:/opt/bitnami/node/bin:$PATH"
+    PATH="/opt/bitnami/seaweedfs/bin:$PATH"
 
-EXPOSE 3000 8080
+EXPOSE 8080 8333 8888 9327 9333 18080 18333 18888 19333
 
-WORKDIR /opt/bitnami/grafana-image-renderer
+WORKDIR /opt/bitnami/seaweedfs
 USER 1001
-ENTRYPOINT [ "node" ]
-CMD [ "build/app.js", "server", "--config=conf/config.json" ]
+ENTRYPOINT [ "/opt/bitnami/seaweedfs/bin/weed" ]
+CMD [ "help" ]
