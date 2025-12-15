@@ -21,10 +21,8 @@ env:
   UPSTREAM_REPO: 'bitnami/containers'
   UPSTREAM_BRANCH: 'main'
 
-# Required permissions for pushing workflow file changes
 permissions:
   contents: write
-  workflows: write
 
 jobs:
   sync-upstream:
@@ -37,7 +35,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # PAT with 'workflow' scope is required to push changes to workflow files
+          # Create one at: https://github.com/settings/tokens/new?scopes=repo,workflow
+          # Then add it as repository secret named 'PAT_TOKEN'
+          token: ${{ secrets.PAT_TOKEN }}
           fetch-depth: 0  # Need full history for proper sync
           
       - name: Configure Git
