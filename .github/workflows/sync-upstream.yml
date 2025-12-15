@@ -21,6 +21,11 @@ env:
   UPSTREAM_REPO: 'bitnami/containers'
   UPSTREAM_BRANCH: 'main'
 
+# Required permissions for pushing workflow file changes
+permissions:
+  contents: write
+  workflows: write
+
 jobs:
   sync-upstream:
     runs-on: ubuntu-latest
