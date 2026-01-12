@@ -7,4 +7,5 @@ multus-cni
 mastodon
 apache
 minio
+minio-object-browser
 thanos
