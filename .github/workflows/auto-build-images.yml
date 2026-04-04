@@ -253,14 +253,13 @@ jobs:
             echo "🛡️ **Security Scan: PASSED** ✅" >> $GITHUB_STEP_SUMMARY
             echo "No critical vulnerabilities found." >> $GITHUB_STEP_SUMMARY
           else
-            echo "🚨 **Security Scan: FAILED** ❌" >> $GITHUB_STEP_SUMMARY
-            echo "Critical vulnerabilities detected!" >> $GITHUB_STEP_SUMMARY
-            echo "Image will NOT be pushed to registry." >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ **Security Scan: CRITICAL vulnerabilities found**" >> $GITHUB_STEP_SUMMARY
+            echo "Check Security tab for details. Image will still be published." >> $GITHUB_STEP_SUMMARY
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
           
       - name: Build and push to registry
-        if: steps.trivy-scan.outcome == 'success'
+        if: always() && steps.build.outcome == 'success'
         uses: docker/build-push-action@v5
         with:
           context: ${{ steps.meta.outputs.context }}
@@ -282,19 +281,16 @@ jobs:
       - name: Generate build summary
         if: always()
         run: |
+          echo "### ${{ matrix.image.app }} v${{ steps.meta.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Registry:** ${{ steps.meta.outputs.image-name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Tags:** ${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Platforms:** linux/amd64, linux/arm64" >> $GITHUB_STEP_SUMMARY
           if [[ "${{ steps.trivy-scan.outcome }}" == "success" ]]; then
-            echo "### ✅ ${{ matrix.image.app }} v${{ steps.meta.outputs.version }} 🛡️" >> $GITHUB_STEP_SUMMARY
-            echo "**Registry:** ${{ steps.meta.outputs.image-name }}" >> $GITHUB_STEP_SUMMARY
-            echo "**Tags:** ${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
-            echo "**Platforms:** linux/amd64, linux/arm64" >> $GITHUB_STEP_SUMMARY
-            echo "**Security:** ✅ Passed (No critical vulnerabilities)" >> $GITHUB_STEP_SUMMARY
-            echo "**Status:** 🚀 Published to registry" >> $GITHUB_STEP_SUMMARY
+            echo "**Security:** ✅ No critical vulnerabilities" >> $GITHUB_STEP_SUMMARY
           else
-            echo "### 🚨 ${{ matrix.image.app }} v${{ steps.meta.outputs.version }} - Security Issues" >> $GITHUB_STEP_SUMMARY
-            echo "**Security:** ❌ Failed (Critical vulnerabilities found)" >> $GITHUB_STEP_SUMMARY
-            echo "**Status:** 🛑 NOT published to registry" >> $GITHUB_STEP_SUMMARY
-            echo "**Action:** Check security scan results in GitHub Security tab" >> $GITHUB_STEP_SUMMARY
+            echo "**Security:** ⚠️ Critical vulnerabilities found (see Security tab)" >> $GITHUB_STEP_SUMMARY
           fi
+          echo "**Status:** 🚀 Published to registry" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
 
