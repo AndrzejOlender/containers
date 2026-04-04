@@ -35,7 +35,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2  # Need at least 2 commits to compare HEAD~1 for push events
+          fetch-depth: 0  # Full history needed to compare merge commits from upstream sync
         
       - name: Smart Image Discovery
         id: discover
@@ -59,9 +59,12 @@ jobs:
             changed_files=()
             if [[ "${{ github.event_name }}" == "push" ]]; then
               echo "🔄 Push trigger - checking changed files..."
-              # Get changed files from push event
-              changed_files=($(git diff --name-only HEAD~1 HEAD | grep "bitnami/.*/Dockerfile" || true))
-              echo "Changed Dockerfiles: ${changed_files[*]}"
+              # For merge commits (upstream sync), compare first parent (our main before merge)
+              # against HEAD to get all changes introduced by the merge
+              # This catches all upstream changes, not just the last commit
+              merge_base=$(git rev-parse HEAD^1 2>/dev/null || git rev-parse HEAD~1)
+              changed_files=($(git diff --name-only "$merge_base" HEAD | grep "bitnami/.*/Dockerfile" || true))
+              echo "Changed Dockerfiles (${#changed_files[@]}): ${changed_files[*]}"
             else
               echo "🔧 Manual trigger - building all preferred images..."
               # For manual runs, build all preferred apps
@@ -208,7 +211,7 @@ jobs:
       - name: Run Trivy security scan
         id: trivy-scan
         continue-on-error: true  # Don't fail the job, just capture the result
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           image-ref: 'local-scan:${{ matrix.image.app }}'
           format: 'sarif'
