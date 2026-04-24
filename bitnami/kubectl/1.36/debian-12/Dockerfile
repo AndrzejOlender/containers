@@ -7,13 +7,13 @@ ARG DOWNLOADS_URL="downloads.bitnami.com/files/stacksmith"
 ARG TARGETARCH
 
 LABEL org.opencontainers.image.base.name="docker.io/bitnami/minideb:bookworm" \
-      org.opencontainers.image.created="2026-04-15T22:49:46Z" \
+      org.opencontainers.image.created="2026-04-23T14:11:27Z" \
       org.opencontainers.image.description="Application packaged by Broadcom, Inc." \
       org.opencontainers.image.documentation="https://github.com/bitnami/containers/tree/main/bitnami/kubectl/README.md" \
       org.opencontainers.image.source="https://github.com/bitnami/containers/tree/main/bitnami/kubectl" \
       org.opencontainers.image.title="kubectl" \
       org.opencontainers.image.vendor="Broadcom, Inc." \
-      org.opencontainers.image.version="1.35.4"
+      org.opencontainers.image.version="1.36.0"
 
 ENV HOME="/" \
     OS_ARCH="${TARGETARCH:-amd64}" \
@@ -28,8 +28,8 @@ RUN --mount=type=secret,id=downloads_url,env=SECRET_DOWNLOADS_URL \
     DOWNLOADS_URL=${SECRET_DOWNLOADS_URL:-${DOWNLOADS_URL}} ; \
     mkdir -p /tmp/bitnami/pkg/cache/ ; cd /tmp/bitnami/pkg/cache/ || exit 1 ; \
     COMPONENTS=( \
-      "yq-4.52.5-1-linux-${OS_ARCH}-debian-12" \
-      "kubectl-1.35.4-0-linux-${OS_ARCH}-debian-12" \
+      "yq-4.53.2-0-linux-${OS_ARCH}-debian-12" \
+      "kubectl-1.36.0-0-linux-${OS_ARCH}-debian-12" \
     ) ; \
     for COMPONENT in "${COMPONENTS[@]}"; do \
       if [ ! -f "${COMPONENT}.tar.gz" ]; then \
@@ -47,7 +47,7 @@ RUN mkdir /.kube && chmod g+rwX /.kube
 RUN find / -perm /6000 -type f -exec chmod a-s {} \; || true
 RUN uninstall_packages curl
 
-ENV APP_VERSION="1.35.4" \
+ENV APP_VERSION="1.36.0" \
     BITNAMI_APP_NAME="kubectl" \
     IMAGE_REVISION="0" \
     PATH="/opt/bitnami/common/bin:/opt/bitnami/kubectl/bin:$PATH"
