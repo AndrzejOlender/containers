@@ -7,13 +7,13 @@ ARG DOWNLOADS_URL="https://downloads.bitnami.com/files/stacksmith"
 ARG TARGETARCH
 
 LABEL org.opencontainers.image.base.name="docker.io/bitnami/minideb:bookworm" \
-      org.opencontainers.image.created="2026-07-03T19:11:06Z" \
+      org.opencontainers.image.created="2026-07-03T09:44:20Z" \
       org.opencontainers.image.description="Application packaged by Broadcom, Inc." \
-      org.opencontainers.image.documentation="https://github.com/bitnami/containers/tree/main/bitnami/mlflow/README.md" \
-      org.opencontainers.image.source="https://github.com/bitnami/containers/tree/main/bitnami/mlflow" \
-      org.opencontainers.image.title="mlflow" \
+      org.opencontainers.image.documentation="https://github.com/bitnami/containers/tree/main/bitnami/grafana-k6/README.md" \
+      org.opencontainers.image.source="https://github.com/bitnami/containers/tree/main/bitnami/grafana-k6" \
+      org.opencontainers.image.title="grafana-k6" \
       org.opencontainers.image.vendor="Broadcom, Inc." \
-      org.opencontainers.image.version="3.14.0"
+      org.opencontainers.image.version="2.1.0"
 
 ENV HOME="/" \
     OS_ARCH="${TARGETARCH:-amd64}" \
@@ -23,14 +23,13 @@ ENV HOME="/" \
 COPY prebuildfs /
 SHELL ["/bin/bash", "-o", "errexit", "-o", "nounset", "-o", "pipefail", "-c"]
 # Install required system packages and dependencies
-RUN install_packages ca-certificates curl git libbz2-1.0 libcom-err2 libcrypt1 libffi8 libgcc-s1 libgmp10 libgnutls30 libgssapi-krb5-2 libhogweed6 libicu72 libidn2-0 libk5crypto3 libkeyutils1 libkrb5-3 libkrb5support0 libldap-2.5-0 liblzma5 libncursesw6 libnettle8 libnsl2 libp11-kit0 libreadline8 libsasl2-2 libsqlite3-0 libssl3 libstdc++6 libtasn1-6 libtinfo6 libtirpc3 libunistring2 libuuid1 libxml2 libxslt1.1 procps zlib1g
+RUN install_packages ca-certificates curl procps
 RUN --mount=type=secret,id=downloads_url,env=SECRET_DOWNLOADS_URL \
     DOWNLOADS_URL=${SECRET_DOWNLOADS_URL:-${DOWNLOADS_URL}} ; \
     mkdir -p /tmp/bitnami/pkg/cache/ ; cd /tmp/bitnami/pkg/cache/ || exit 1 ; \
     COMPONENTS=( \
-      "python-3.12.13-16-linux-${OS_ARCH}-debian-12" \
-      "postgresql-lib-18.4.0-0-linux-${OS_ARCH}-debian-12" \
-      "mlflow-3.14.0-1-linux-${OS_ARCH}-debian-12" \
+      "grafana-k6-2.1.0-0-linux-${OS_ARCH}-debian-12" \
+      "scuttle-1.1.15-4-linux-${OS_ARCH}-debian-12" \
     ) ; \
     for COMPONENT in "${COMPONENTS[@]}"; do \
       if [ ! -f "${COMPONENT}.tar.gz" ]; then \
@@ -43,18 +42,14 @@ RUN --mount=type=secret,id=downloads_url,env=SECRET_DOWNLOADS_URL \
     rm -rf /opt/bitnami/checksums ;
 RUN apt-get update && apt-get upgrade -y && \
     apt-get clean && rm -rf /var/lib/apt/lists /var/cache/apt/archives
-RUN useradd -r -u 1001 -g root mlflow
+RUN useradd -r -u 1001 -g root grafana-k6
 RUN find / -perm /6000 -type f -exec chmod a-s {} \; || true
-RUN mkdir /.local && chmod g+rwX /.local
 RUN uninstall_packages curl
 
-RUN mkdir -p /app/mlruns /app/mlartifacts /bitnami/mlflow && chmod g+rwX /app /app/mlruns /app/mlartifacts /bitnami/mlflow && ln -s /opt/bitnami/python/lib/*/site-packages/mlflow/server/auth/ /bitnami/mlflow-basic-auth
-ENV APP_VERSION="3.14.0" \
-    BITNAMI_APP_NAME="mlflow" \
-    IMAGE_REVISION="1" \
-    LD_LIBRARY_PATH="/opt/bitnami/postgresql/lib" \
-    PATH="/opt/bitnami/python/bin:$PATH"
+ENV APP_VERSION="2.1.0" \
+    BITNAMI_APP_NAME="grafana-k6" \
+    IMAGE_REVISION="0" \
+    PATH="/opt/bitnami/grafana-k6/bin:/opt/bitnami/common/bin:$PATH"
 
-WORKDIR /app
 USER 1001
-ENTRYPOINT [ "python" ]
+ENTRYPOINT [ "/opt/bitnami/grafana-k6/bin/k6" ]
