@@ -7,13 +7,13 @@ ARG DOWNLOADS_URL="https://downloads.bitnami.com/files/stacksmith"
 ARG TARGETARCH
 
 LABEL org.opencontainers.image.base.name="docker.io/bitnami/minideb:bookworm" \
-      org.opencontainers.image.created="2026-07-15T18:47:38Z" \
+      org.opencontainers.image.created="2026-07-15T11:40:58Z" \
       org.opencontainers.image.description="Application packaged by Broadcom, Inc." \
-      org.opencontainers.image.documentation="https://github.com/bitnami/containers/tree/main/bitnami/nginx/README.md" \
-      org.opencontainers.image.source="https://github.com/bitnami/containers/tree/main/bitnami/nginx" \
-      org.opencontainers.image.title="nginx" \
+      org.opencontainers.image.documentation="https://github.com/bitnami/containers/tree/main/bitnami/envoy/README.md" \
+      org.opencontainers.image.source="https://github.com/bitnami/containers/tree/main/bitnami/envoy" \
+      org.opencontainers.image.title="envoy" \
       org.opencontainers.image.vendor="Broadcom, Inc." \
-      org.opencontainers.image.version="1.31.3"
+      org.opencontainers.image.version="1.39.0"
 
 ENV HOME="/" \
     OS_ARCH="${TARGETARCH:-amd64}" \
@@ -23,13 +23,12 @@ ENV HOME="/" \
 COPY prebuildfs /
 SHELL ["/bin/bash", "-o", "errexit", "-o", "nounset", "-o", "pipefail", "-c"]
 # Install required system packages and dependencies
-RUN install_packages ca-certificates curl gettext libcrypt1 libgcc-s1 libgeoip1 libicu72 liblzma5 libpcre3 libssl3 libstdc++6 libxml2 openssl procps zlib1g
+RUN install_packages ca-certificates curl procps
 RUN --mount=type=secret,id=downloads_url,env=SECRET_DOWNLOADS_URL \
     DOWNLOADS_URL=${SECRET_DOWNLOADS_URL:-${DOWNLOADS_URL}} ; \
     mkdir -p /tmp/bitnami/pkg/cache/ ; cd /tmp/bitnami/pkg/cache/ || exit 1 ; \
     COMPONENTS=( \
-      "render-template-1.0.9-168-linux-${OS_ARCH}-debian-12" \
-      "nginx-1.31.3-0-linux-${OS_ARCH}-debian-12" \
+      "envoy-1.39.0-0-linux-${OS_ARCH}-debian-12" \
     ) ; \
     for COMPONENT in "${COMPONENTS[@]}"; do \
       if [ ! -f "${COMPONENT}.tar.gz" ]; then \
@@ -44,23 +43,13 @@ RUN apt-get update && apt-get upgrade -y && \
     apt-get clean && rm -rf /var/lib/apt/lists /var/cache/apt/archives
 RUN chmod g+rwX /opt/bitnami
 RUN find / -perm /6000 -type f -exec chmod a-s {} \; || true
-RUN ln -sf /dev/stdout /opt/bitnami/nginx/logs/access.log
-RUN ln -sf /dev/stderr /opt/bitnami/nginx/logs/error.log
 RUN uninstall_packages curl
 
-COPY rootfs /
-RUN /opt/bitnami/scripts/nginx/postunpack.sh
-ENV APP_VERSION="1.31.3" \
-    BITNAMI_APP_NAME="nginx" \
+ENV APP_VERSION="1.39.0" \
+    BITNAMI_APP_NAME="envoy" \
     IMAGE_REVISION="0" \
-    NGINX_HTTPS_PORT_NUMBER="" \
-    NGINX_HTTP_PORT_NUMBER="" \
-    PATH="/opt/bitnami/common/bin:/opt/bitnami/nginx/sbin:$PATH"
+    PATH="/opt/bitnami/envoy/bin:$PATH"
 
-EXPOSE 8080 8443
-
-STOPSIGNAL SIGQUIT
-WORKDIR /app
 USER 1001
-ENTRYPOINT [ "/opt/bitnami/scripts/nginx/entrypoint.sh" ]
-CMD [ "/opt/bitnami/scripts/nginx/run.sh" ]
+ENTRYPOINT [ "/opt/bitnami/envoy/bin/envoy" ]
+CMD [ "-c", "/opt/bitnami/envoy/conf/envoy.yaml" ]
